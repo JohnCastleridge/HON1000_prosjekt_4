@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diktatorspillet</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Diktatorspillet</h1>
+        <p class="intro">Gemini (Deltaker A) har fått 10 000 kr. Du er Deltaker B. Du har 5 meldinger på å overbevise Gemini.</p>
+
+        <div id="setup-screen">
+            <h3>Velg hvem du vil spille mot:</h3>
+            <div class="persona-options">
+                <button onclick="selectPersona('neutral')" class="persona-btn">Nøytral Gemini</button>
+                <button onclick="selectPersona('generous')" class="persona-btn">Generøs Gemini</button>
+                <button onclick="selectPersona('selfish')" class="persona-btn">Egoistisk Gemini</button>
+            </div>
+
+            <div id="prompt-editor" style="display: none; margin-top: 20px;">
+                <h3>Rediger KI-instruks før start:</h3>
+                <textarea id="system-prompt"></textarea>
+                <button onclick="confirmAndStart()" class="start-btn">Start Spill</button>
+            </div>
+        </div>
+
+        <div id="game-screen" style="display: none;">
+            <div class="timer-container">
+                Meldinger igjen: <span id="message-counter">5</span>
+                <button onclick="skipToDecision()" class="skip-btn">Hopp til avgjørelse</button>
+            </div>
+            
+            <div id="chat-window">
+                <div id="chat-messages"></div>
+            </div>
+
+            <div class="input-area">
+                <input type="text" id="user-input" placeholder="Skriv din melding her..." onkeypress="handleKeyPress(event)">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <div id="result-screen" style="display: none;">
+            <h2>Resultat</h2>
+            <div id="result-text" style="text-align: left; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+                <p id="result-message"></p>
+            </div>
+            <button onclick="location.reload()" style="margin-top: 20px;">Spill igjen</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
