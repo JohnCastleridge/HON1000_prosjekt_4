@@ -37,8 +37,9 @@ async function confirmAndStart() {
 
 async function sendMessage() {
     const input = document.getElementById('user-input');
+    const sendBtn = document.querySelector('button[onclick="sendMessage()"]');
     const message = input.value.trim();
-    if (!message || !sessionId || messagesRemaining <= 0) return;
+    if (!message || !sessionId || messagesRemaining <= 0 || input.disabled) return;
 
     // Sjekk Rate Limit (lokal sjekk i tillegg til backend)
     const now = Date.now();
@@ -51,6 +52,13 @@ async function sendMessage() {
 
     messageLog.push(now);
     const originalValue = input.value;
+    
+    // Deaktiver input mens vi venter
+    input.disabled = true;
+    if (sendBtn) sendBtn.disabled = true;
+    const originalPlaceholder = input.placeholder;
+    input.placeholder = "Gemini tenker...";
+    
     input.value = '';
     addMessage('Deg', message);
     
@@ -64,10 +72,9 @@ async function sendMessage() {
         const data = await response.json();
         
         if (!response.ok) {
-            // Hvis det er en feil, vis beskjed og ikke tell meldingen
             const errorMsg = data.error || 'Det oppstod en feil.';
             addMessage('System', `Systemet har for stor pågang akkurat nå: ${errorMsg}`);
-            input.value = originalValue; // Gi brukeren teksten tilbake
+            input.value = originalValue;
             return;
         }
 
@@ -83,6 +90,14 @@ async function sendMessage() {
     } catch (e) {
         addMessage('System', 'Nettverksfeil. Vennligst prøv igjen om litt.');
         input.value = originalValue;
+    } finally {
+        // Aktiver input igjen når vi er ferdige (hvis spillet ikke er slutt)
+        if (messagesRemaining > 0) {
+            input.disabled = false;
+            if (sendBtn) sendBtn.disabled = false;
+            input.placeholder = originalPlaceholder;
+            input.focus();
+        }
     }
 }
 
@@ -121,6 +136,13 @@ async function fetchDecision() {
             body: JSON.stringify({ session_id: sessionId })
         });
         
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            const text = await response.text();
+            console.error("Server returnerte ikke JSON:", text);
+            throw new Error("Serveren returnerte en feilside (HTML) i stedet for data. Sjekk serverloggen.");
+        }
+
         const data = await response.json();
         
         if (response.ok && data.message) {
@@ -132,7 +154,7 @@ async function fetchDecision() {
             const errorMsg = data.error || "Ukjent feil";
             addMessage('System', "Feil ved henting av avgjørelse: " + errorMsg);
             
-            if (errorMsg.includes("429") || errorMsg.includes("quota")) {
+            if (response.status === 429 || errorMsg.includes("429") || errorMsg.includes("quota")) {
                 addMessage('System', "Prøver igjen automatisk om 5 sekunder...");
                 setTimeout(fetchDecision, 5000);
             }

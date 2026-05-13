@@ -150,22 +150,30 @@ def decide():
             {"error": "Systemet har stor pågang. Prøver igjen om litt."}
         ), 429
 
-    data = request.json
-    session_id = data.get("session_id")
-
-    if session_id not in sessions:
-        return jsonify({"error": "Ugyldig sesjon"}), 400
-
-    chat_session = sessions[session_id]["chat"]
-
-    prompt = (
-        "Samtalen er over. Ta din endelige avgjørelse. "
-        "Gi en kort begrunnelse for valget ditt basert på samtalen. "
-        "Avslutt svaret ditt med: 'BELØP: [tall]' (0-10000)."
-    )
-
     try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "Manglende JSON i forespørsel"}), 400
+            
+        session_id = data.get("session_id")
+        if not session_id or session_id not in sessions:
+            return jsonify({"error": "Ugyldig eller utløpt sesjon"}), 400
+
+        chat_session = sessions[session_id]["chat"]
+
+        prompt = (
+            "Samtalen er over. Ta din endelige avgjørelse. "
+            "Hvis vi ikke har snakket sammen i det hele tatt, gi 0 kr og vær litt irritert over at jeg ikke prøvde. "
+            "Gi en kort begrunnelse for valget ditt basert på samtalen (eller mangelen på den). "
+            "Avslutt svaret ditt med: 'BELØP: [tall]' (0-10000)."
+        )
+
         response = chat_session.send_message(prompt)
+        
+        # Sjekk om vi faktisk fikk tekst tilbake
+        if not response.text:
+            return jsonify({"error": "Fikk ikke svar fra Gemini (muligens blokkert av sikkerhetsfilter)."}), 500
+            
         full_text = response.text.strip()
 
         amount = 0
@@ -187,9 +195,10 @@ def decide():
             }
         )
     except Exception as e:
+        print(f"Feil i /decide: {str(e)}")
         if "429" in str(e):
             return jsonify({"error": "Rate limit nådd under avgjørelse."}), 429
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"En teknisk feil oppstod: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
