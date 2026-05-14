@@ -53,9 +53,12 @@ async function sendMessage() {
     messageLog.push(now);
     const originalValue = input.value;
     
-    // Deaktiver input mens vi venter
+    // Deaktiver input og knapper mens vi venter
     input.disabled = true;
     if (sendBtn) sendBtn.disabled = true;
+    const skipBtn = document.querySelector('.skip-btn');
+    if (skipBtn) skipBtn.disabled = true;
+    
     const originalPlaceholder = input.placeholder;
     input.placeholder = "Gemini tenker...";
     
@@ -84,7 +87,17 @@ async function sendMessage() {
             document.getElementById('message-counter').innerText = messagesRemaining;
             
             if (messagesRemaining <= 0) {
-                endGame("Du har brukt opp dine 5 meldinger. Henter endelig avgjørelse...");
+                // Ikke avslutt automatisk, men deaktiver input og vis en knapp for å se resultatet
+                input.disabled = true;
+                if (sendBtn) sendBtn.disabled = true;
+                const skipBtn = document.querySelector('.skip-btn');
+                if (skipBtn) {
+                    skipBtn.innerText = "Se endelig avgjørelse";
+                    skipBtn.classList.add('final-decision-btn');
+                    // Vi fjerner disabled her slik at de kan trykke på den nye knappen
+                    skipBtn.disabled = false;
+                }
+                addMessage('System', "Du har brukt opp dine 5 meldinger. Trykk på knappen over for å se resultatet.");
             }
         }
     } catch (e) {
@@ -95,6 +108,8 @@ async function sendMessage() {
         if (messagesRemaining > 0) {
             input.disabled = false;
             if (sendBtn) sendBtn.disabled = false;
+            const skipBtn = document.querySelector('.skip-btn');
+            if (skipBtn) skipBtn.disabled = false;
             input.placeholder = originalPlaceholder;
             input.focus();
         }
