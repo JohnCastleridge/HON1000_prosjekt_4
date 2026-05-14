@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 
 def load_api_key():
     with open('API_key.txt', 'r') as f:
@@ -8,9 +8,9 @@ def load_api_key():
     return None
 
 api_key = load_api_key()
-genai.configure(api_key=api_key)
+client = genai.Client(api_key=api_key)
 
 print("Tilgjengelige modeller:")
-for m in genai.list_models():
-    if 'generateContent' in m.supported_generation_methods:
-        print(m.name)
+for m in client.models.list():
+    print(f"Name: {m.name}")
+    # print(f"Attributes: {dir(m)}") # DEBUG

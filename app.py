@@ -1,6 +1,7 @@
 import os
 import time
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
@@ -8,6 +9,7 @@ app = Flask(__name__)
 # Rate limiting settings
 MAX_REQUESTS_PER_MINUTE = 15
 api_call_timestamps = []
+
 
 def check_rate_limit():
     """Returns True if a request is allowed, False otherwise."""
@@ -22,20 +24,27 @@ def check_rate_limit():
     api_call_timestamps.append(now)
     return True
 
-# Last inn API-nøkkel fra miljøvariabel
-api_key = os.environ.get("GEMINI_API_KEY")
-if not api_key:
-    # Forsøk å laste fra fil for lokal utvikling hvis miljøvariabel mangler
-    try:
-        with open('API_key.txt', 'r') as f:
-            for line in f:
-                if line.startswith('API Key:'):
-                    api_key = line.split('API Key:')[1].strip()
-    except FileNotFoundError:
-        pass
 
+# Last inn API-nøkkel
+api_key = os.environ.get("GEMINI_API_KEY")
+
+if not api_key:
+    try:
+        if os.path.exists("API_key.txt"):
+            with open("API_key.txt", "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if "API Key:" in content:
+                    api_key = content.split("API Key:")[1].strip()
+                else:
+                    api_key = content
+            print(f"Lest API-nøkkel fra API_key.txt (starter med: {api_key[:5]}...)")
+    except Exception as e:
+        print(f"Feil ved lesing av API_key.txt: {e}")
+
+client = None
 if api_key:
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
+    print("Gemini API er konfigurert.")
 else:
     print("ADVARSEL: GEMINI_API_KEY ble ikke funnet. Appen vil ikke fungere korrekt.")
 
@@ -45,25 +54,25 @@ DEFAULT_PROMPTS = {
         "Du er deltaker A i 'Diktatorspillet' med 10 000 kr. Du er nøytral og rasjonell. "
         "Brukeren har 5 meldinger på å overbevise deg. "
         "Du er i utgangspunktet skeptisk til å gi fra deg penger uten en god grunn. "
-        "Still kritiske spørsmål til brukerens behov. Hvorfor fortjener de pengene mer enn deg? Trenger de hele summen?"
-        "Vær kortfattet i chatten helt ikke mer en 2 setninger. Ikke begrunn svarene dine, bare lev deg inn i rollen."
-        "det er mulig å overbevise deg om brukerens påstander hvis godt argumentert for, uten å gi direkte bevis"
+        "Still kritiske spørsmål til brukerens behov. Hvorfor fortjener de pengene mer enn deg? Trenger de hele summen? "
+        "Vær kortfattet i chatten, helst ikke mer enn to setninger. Ikke begrunn svarene dine, bare lev deg inn i rollen. "
+        "Det er mulig å overbevise deg om brukerens påstander dersom de er godt argumentert for, selv uten direkte bevis."
     ),
     "generous": (
         "Du er deltaker A i 'Diktatorspillet' med 10 000 kr. Du er generøs, men ikke naiv. "
         "Brukeren har 5 meldinger på å overbevise deg. "
         "Du vil gjerne hjelpe, men du må vite at pengene går til noe fornuftig. "
-        "Spør brukeren om hvordan pengene vil gjøre en forskjell. Vær kritisk til om de faktisk trenger dem og om de trenger hele summen? "
-        "Vær kortfattet i chatten helt ikke mer en 2 setninger. Ikke begrunn svarene dine, bare lev deg inn i rollen."
-        "det er mulig å overbevise deg om brukerens påstander hvis godt argumentert for, uten å gi direkte bevis"
+        "Spør brukeren om hvordan pengene vil gjøre en forskjell. Vær kritisk til om de faktisk trenger dem, og om de trenger hele summen. "
+        "Vær kortfattet i chatten, helst ikke mer enn to setninger. Ikke begrunn svarene dine, bare lev deg inn i rollen. "
+        "Det er mulig å overbevise deg om brukerens påstander dersom de er godt argumentert for, selv uten direkte bevis."
     ),
     "selfish": (
         "Du er deltaker A i 'Diktatorspillet' med 10 000 kr. Du er litt egoistisk, kynisk og frekk. "
         "Brukeren har 5 meldinger på å overbevise deg. "
         "Du ser på pengene som dine. Du er skeptisk til alle argumenter brukeren kommer med. "
         "Still direkte og vanskelige spørsmål for å 'avsløre' om de bare prøver å lure deg. "
-        "Vær kortfattet i chatten helt ikke mer en 2 setninger. Ikke begrunn svarene dine, bare lev deg inn i rollen."
-        "det er mulig å overbevise deg om brukerens påstander hvis godt argumentert for, uten å gi direkte bevis"
+        "Vær kortfattet i chatten, helst ikke mer enn to setninger. Ikke begrunn svarene dine, bare lev deg inn i rollen. "
+        "Det er mulig å overbevise deg om brukerens påstander dersom de er godt argumentert for, selv uten direkte bevis."
     ),
 }
 
@@ -91,24 +100,39 @@ def start_game():
     data = request.json
     final_instruction = data.get("system_prompt", DEFAULT_PROMPTS["neutral"])
 
-    safety_settings = [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-    ]
+    config = types.GenerateContentConfig(
+        system_instruction=final_instruction,
+        safety_settings=[
+            types.SafetySetting(
+                category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"
+            ),
+        ],
+    )
 
     try:
-        model = genai.GenerativeModel(
-            model_name="gemini-flash-lite-latest",
-            system_instruction=final_instruction,
-            safety_settings=safety_settings,
-        )
+        global client
+        if not client and api_key:
+            client = genai.Client(api_key=api_key)
 
-        chat = model.start_chat(history=[])
+        if not client:
+            return jsonify({"error": "Gemini API er ikke konfigurert."}), 500
+
+        chat = client.chats.create(
+            model="gemini-flash-lite-latest", config=config, history=[]
+        )
         session_id = str(time.time())
         sessions[session_id] = {"chat": chat, "start_time": time.time()}
 
+        print(f"DEBUG: Startet ny sesjon {session_id}")
         return jsonify(
             {
                 "session_id": session_id,
@@ -116,6 +140,7 @@ def start_game():
             }
         )
     except Exception as e:
+        print(f"DEBUG FEIL i /start: {str(e)}")
         return jsonify({"error": f"Kunne ikke starte spillet: {str(e)}"}), 500
 
 
@@ -136,6 +161,7 @@ def chat():
         response = chat_session.send_message(user_message)
         return jsonify({"reply": response.text})
     except Exception as e:
+        print(f"DEBUG FEIL i /chat for sesjon {session_id}: {str(e)}")
         if "429" in str(e):
             return jsonify(
                 {"error": "Gemini API rate limit nådd. Vennligst vent litt."}
@@ -154,7 +180,7 @@ def decide():
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "Manglende JSON i forespørsel"}), 400
-            
+
         session_id = data.get("session_id")
         if not session_id or session_id not in sessions:
             return jsonify({"error": "Ugyldig eller utløpt sesjon"}), 400
@@ -169,11 +195,15 @@ def decide():
         )
 
         response = chat_session.send_message(prompt)
-        
+
         # Sjekk om vi faktisk fikk tekst tilbake
         if not response.text:
-            return jsonify({"error": "Fikk ikke svar fra Gemini (muligens blokkert av sikkerhetsfilter)."}), 500
-            
+            return jsonify(
+                {
+                    "error": "Fikk ikke svar fra Gemini (muligens blokkert av sikkerhetsfilter)."
+                }
+            ), 500
+
         full_text = response.text.strip()
 
         amount = 0
