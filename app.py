@@ -140,8 +140,13 @@ def start_game():
             }
         )
     except Exception as e:
-        print(f"DEBUG FEIL i /start: {str(e)}")
-        return jsonify({"error": f"Kunne ikke starte spillet: {str(e)}"}), 500
+        error_msg = str(e)
+        print(f"DEBUG FEIL i /start: {error_msg}")
+        if "503" in error_msg:
+            return jsonify({"error": "Gemini API har for stor pågang akkurat nå. Vent noen minutter og prøv igjen.", "debug": error_msg}), 503
+        if "429" in error_msg:
+            return jsonify({"error": "Gemini API rate limit nådd. Vennligst vent litt.", "debug": error_msg}), 429
+        return jsonify({"error": f"Kunne ikke starte spillet: {error_msg}"}), 500
 
 
 @app.route("/chat", methods=["POST"])
@@ -161,12 +166,13 @@ def chat():
         response = chat_session.send_message(user_message)
         return jsonify({"reply": response.text})
     except Exception as e:
-        print(f"DEBUG FEIL i /chat for sesjon {session_id}: {str(e)}")
-        if "429" in str(e):
-            return jsonify(
-                {"error": "Gemini API rate limit nådd. Vennligst vent litt."}
-            ), 429
-        return jsonify({"error": f"Feil ved kommunikasjon med Gemini: {str(e)}"}), 500
+        error_msg = str(e)
+        print(f"DEBUG FEIL i /chat for sesjon {session_id}: {error_msg}")
+        if "503" in error_msg:
+            return jsonify({"error": "Gemini API har for stor pågang akkurat nå. Vent noen minutter og prøv igjen.", "debug": error_msg}), 503
+        if "429" in error_msg:
+            return jsonify({"error": "Gemini API rate limit nådd. Vennligst vent litt.", "debug": error_msg}), 429
+        return jsonify({"error": f"Feil ved kommunikasjon med Gemini: {error_msg}"}), 500
 
 
 @app.route("/decide", methods=["POST"])
@@ -225,10 +231,13 @@ def decide():
             }
         )
     except Exception as e:
-        print(f"Feil i /decide: {str(e)}")
-        if "429" in str(e):
-            return jsonify({"error": "Rate limit nådd under avgjørelse."}), 429
-        return jsonify({"error": f"En teknisk feil oppstod: {str(e)}"}), 500
+        error_msg = str(e)
+        print(f"Feil i /decide: {error_msg}")
+        if "503" in error_msg:
+            return jsonify({"error": "Gemini API har for stor pågang akkurat nå. Vent noen minutter og prøv igjen.", "debug": error_msg}), 503
+        if "429" in error_msg:
+            return jsonify({"error": "Rate limit nådd under avgjørelse.", "debug": error_msg}), 429
+        return jsonify({"error": f"En teknisk feil oppstod: {error_msg}"}), 500
 
 
 if __name__ == "__main__":

@@ -42,10 +42,13 @@ def troubleshoot():
         print("\n--- Alt ser ut til å fungere! ---")
         
     except Exception as e:
-        print(f"\nFEIL oppstod: {str(e)}")
-        if "429" in str(e):
+        error_msg = str(e)
+        print(f"\nFEIL oppstod: {error_msg}")
+        if "503" in error_msg:
+            print("Tips: Gemini API har for stor pågang akkurat nå. Vent noen minutter og prøv igjen.")
+        elif "429" in error_msg:
             print("Tips: Du har nådd kvotegrensen din (Rate Limit). Vent litt før du prøver igjen.")
-        elif "401" in str(e) or "403" in str(e):
+        elif "401" in error_msg or "403" in error_msg:
             print("Tips: API-nøkkelen din er ugyldig eller har ikke tilgang.")
 
 if __name__ == "__main__":
